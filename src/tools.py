@@ -14,6 +14,28 @@ PROPERTY_DATASETS = [
 ]
 
 
+def _format_property_results(df: pd.DataFrame) -> str:
+    """
+    Convert DataFrame of properties to readable text format.
+    Prevents formatting issues when LangChain converts DataFrames to strings.
+    """
+    if df.empty:
+        return "No properties found matching your criteria."
+
+    output_lines = []
+    for idx, row in df.iterrows():
+        address = row.get("address", "Unknown address")
+        neighbourhood = row.get("neighbourhood", "Unknown area")
+        bedrooms = row.get("bedrooms", "?")
+        bathrooms = row.get("bathrooms", "?")
+        price = row.get("price", "?")
+
+        line = f"- {address} ({neighbourhood}): {bedrooms} bed, {bathrooms} bath, ${price}/month"
+        output_lines.append(line)
+
+    return "\n".join(output_lines)
+
+
 def _detect_area_from_values(values):
     ordered = []
     for value in values:
@@ -384,11 +406,7 @@ def search_properties(query: str):
 
     # Fast path: If we have structured results and they're good, return them
     if not filtered_df.empty and has_structured_filters:
-        display_cols = ["address", "neighbourhood", "bedrooms", "bathrooms", "price"]
-        for col in display_cols:
-            if col not in filtered_df.columns:
-                filtered_df[col] = pd.NA
-        return filtered_df[display_cols].head(5)
+        return _format_property_results(filtered_df.head(5))
 
     # Hybrid path: Use semantic search + structured filtering
     print("Performing hybrid semantic + structured search...")
@@ -471,15 +489,14 @@ def search_properties(query: str):
 
             # Return top results (already ranked by semantic similarity)
             if not semantic_df.empty:
-                display_cols = ["address", "neighbourhood", "bedrooms", "bathrooms", "price"]
-                return semantic_df[display_cols].head(5)
+                return _format_property_results(semantic_df.head(5))
 
     except FileNotFoundError:
         print("Warning: Pre-computed vectorstore not found. Run 'python -m src.vectorstore_setup' to create it.")
     except Exception as e:
         print(f"Warning: Error loading vectorstore: {e}")
 
-    return pd.DataFrame(columns=["address", "neighbourhood", "bedrooms", "bathrooms", "price"])
+    return "No properties found matching your criteria."
 
 
 @tool("compare_prices")
@@ -595,20 +612,35 @@ def compare_prices(neighbourhood: str, df_path="data/listings_sample.csv"):
 
     df_results = pd.DataFrame(results)
 
-    # Format output nicely
-    if "median_rent" in df_results.columns:
-        df_results["average_rent"] = df_results["average_rent"].map(lambda v: f"${v:,.0f}")
-        df_results["median_rent"] = df_results["median_rent"].map(lambda v: f"${v:,.0f}")
-        df_results["min_rent"] = df_results["min_rent"].map(lambda v: f"${v:,.0f}")
-        df_results["max_rent"] = df_results["max_rent"].map(lambda v: f"${v:,.0f}")
-    else:
-        df_results["average_rent"] = df_results["average_rent"].map(lambda v: f"${v:,.0f}")
-
     # Sort by area and bedrooms for readability
     if "bedrooms" in df_results.columns:
         df_results = df_results.sort_values(["area", "bedrooms"])
 
-    return df_results
+    # Convert to readable text format instead of DataFrame to avoid formatting issues
+    output_lines = []
+
+    for _, row in df_results.iterrows():
+        area = row["area"]
+        bedrooms = row.get("bedrooms", "All")
+        avg_rent = row["average_rent"]
+
+        if "median_rent" in row:
+            # Detailed stats available
+            median = row["median_rent"]
+            min_rent = row["min_rent"]
+            max_rent = row["max_rent"]
+            count = row["count"]
+
+            line = f"{area} ({bedrooms} bed): Average ${avg_rent:.0f}, Median ${median:.0f}, Range ${min_rent:.0f}-${max_rent:.0f} ({count} listings)"
+        else:
+            # Simple average only
+            count = row.get("count", "")
+            count_str = f" ({count} listings)" if count else ""
+            line = f"{area} ({bedrooms} bed): Average ${avg_rent:.0f}{count_str}"
+
+        output_lines.append(line)
+
+    return "\n".join(output_lines) if output_lines else "No price data available."
 
 
 @tool("area_lowest_rents")
