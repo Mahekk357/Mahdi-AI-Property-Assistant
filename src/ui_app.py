@@ -13,7 +13,15 @@ def main():
 
     # Initialize agent (cached across reruns)
     if "agent" not in st.session_state:
-        store = load_vectorstore()
+        # Ensure vectorstore exists (build if first deployment)
+        with st.spinner("🔄 Loading property data... (first time may take 1-2 minutes)"):
+            try:
+                from src.vectorstore_setup import ensure_vectorstore
+                ensure_vectorstore()  # Build if doesn't exist
+                store = load_vectorstore()
+            except Exception as e:
+                st.error(f"Failed to load property data: {e}")
+                st.stop()
         st.session_state.agent = init_agent()
 
     # Display chat history
