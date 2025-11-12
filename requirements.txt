@@ -10,7 +10,7 @@ faiss-cpu>=1.8.0,<2.0.0
 
 # --- Data handling ---
 pandas>=2.2.0,<3.0.0
-numpy>=1.26.0,<2.0.0
+numpy>=1.26.0
 
 # --- Web/UI framework ---
 streamlit>=1.38.0,<2.0.0
