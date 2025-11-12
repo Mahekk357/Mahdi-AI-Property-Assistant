@@ -139,11 +139,17 @@ def chat_with_agent(agent, user_input: str, history: list = None):
     # Run the agent
     response = agent.invoke({"messages": messages})
 
+    # Extract the final AI message from the response
     if isinstance(response, dict):
         if "messages" in response and response["messages"]:
+            # Get the last AIMessage from the response
             for msg in reversed(response["messages"]):
                 if isinstance(msg, AIMessage):
-                    return _message_to_text(msg)
+                    content = _message_to_text(msg)
+                    # Clean up any potential formatting artifacts
+                    # Remove excessive newlines and normalize spacing
+                    content = '\n'.join(line for line in content.split('\n') if line.strip())
+                    return content
             return _message_to_text(response["messages"][-1])
         if "output" in response:
             return str(response["output"])
